@@ -15,6 +15,7 @@ Usage: backstab.exe <-n name || -p PID> [options]
 	-s, 	Specify service name registry key
 	-u, 	Unload ProcExp driver
 	-a,	adds SeDebugPrivilege
+	-c,	Continuous mode. Runs until cancelled by user
 	-h, 	Print this menu
 
 	Examples:
