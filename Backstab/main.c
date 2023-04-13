@@ -5,7 +5,7 @@
 #include "ProcExp.h"
 #include "resource.h"
 #include "ppl.h"
-
+// #include "windows.h"
 
 //https://azrael.digipen.edu/~mmead/www/Courses/CS180/getopt.html
 
@@ -92,6 +92,7 @@ int PrintInputError(DWORD dwErrorValue) {
 	printf("\t-d,\t\tSpecify path to where ProcExp will be extracted\n");
 	printf("\t-s,\t\tSpecify service name registry key\n");
 	printf("\t-u,\t\t(attempt to) Unload ProcExp driver\n");
+	printf("\t-c,\t\tContinuous mode. Runs until cancelled by user.\n");
 	printf("\t-h,\t\tPrint this menu\n");
 
 	printf("Examples:\n");
@@ -134,6 +135,7 @@ int main(int argc, char* argv[]) {
 		isRequestingHandleList = FALSE,
 		isRequestingProcessKill = FALSE,
 		isRequestingDriverUnload = FALSE,
+		isContinuousMode = FALSE,
 		bRet = FALSE
 		;
 
@@ -156,6 +158,7 @@ int main(int argc, char* argv[]) {
 		case 'n':
 		{
 			isUsingProcessName = TRUE;
+			// Moved the PID retrieval code into the while loop to implement continous mode
 			bRet = GetProcessPIDFromName(charToWChar(optarg), &dwPid);
 			if (!bRet)
 				return PrintInputError(INPUT_ERROR_NONEXISTENT_PID);
@@ -210,6 +213,12 @@ int main(int argc, char* argv[]) {
 		case 'u':
 		{
 			isRequestingDriverUnload = TRUE;
+			break;
+		}
+		case 'c':
+		{
+			// This doesn't work yet :(
+			isContinuousMode = TRUE;
 			break;
 		}
 		}
@@ -273,53 +282,80 @@ int main(int argc, char* argv[]) {
 		Success("Connected to Driver successfully");
 	}
 
+	// Setting to always TRUE for now for testing
+	// TODO: Fix the cli argument so we can remove this
+	isContinuousMode = TRUE;
+	// Needed to prevent sleeping in first iteration of loop
+	BOOL firstIteration = TRUE;
 
-	/* get a handle to the protected process */
-	hProtectedProcess = ProcExpOpenProtectedProcess(dwPid);
-	if (hProtectedProcess == INVALID_HANDLE_VALUE)
-	{
-		return Error("could not get handle to protected process");
-	}
-
-
-	//printing additional info
-	if (isRequestingHandleList || isRequestingProcessKill || isUsingSpecificHandle)
-	{
-		printf("\n");
-		if (isUsingProcessName) { 
-			printf("Process Name: %ws\n", szProcessName); 
+	do {
+		// zzzZzzz on subsequent iterations
+		if (isContinuousMode && !firstIteration) {
+			printf("[i] Continuous Mode: Sleeping for a moment\n");
+			Sleep(5000);
 		}
 		
-		printf("[*] Process PID: %d\n", dwPid);
-		if (!ProcessGetProtectionLevel(dwPid, &dwProcessProtectionLevel))
-			printf("[!] Failed to get the protection level of process with PID %d\n", dwPid);
-		else
-		{
-			ProcessGetProtectionLevelAsString(dwPid, &pwszProcessProtectionName);
-			printf("[*] Process Protection level: %d - %ws\n", dwProcessProtectionLevel, pwszProcessProtectionName);
+		// no longer first iteration when we reach this
+		firstIteration = FALSE;
+		
+		// If we're using -n we need to get the PID here
+		if (isUsingProcessName) {
+			bRet = GetProcessPIDFromName(szProcessName, &dwPid);
+			// this not working likely means the process isn't runnin again (yet).
+			if (!bRet) {
+				// return PrintInputError(INPUT_ERROR_NONEXISTENT_PID);
+				printf("[i] Target process does not appear to be alive yet, going back to sleep\n");
+				continue;
+			}
 		}
-	}
+		
+		/* get a handle to the protected process */
+		hProtectedProcess = ProcExpOpenProtectedProcess(dwPid);
+		if (hProtectedProcess == INVALID_HANDLE_VALUE)
+		{
+			return Error("could not get handle to protected process");
+		}
 
-	/* perform required operation */
-	if (isRequestingHandleList)
-	{
-		Info("Listing Handles\n");
-		ListProcessHandles(hProtectedProcess);
-	}
-	else if (isRequestingProcessKill) {
-		Info("Killing process\n");
-		KillProcessHandles(hProtectedProcess);
-		Success("Killing process succeeded");
-	}
-	else if (isUsingSpecificHandle)
-	{
-		Info("Closing Handle : 0x%x\n", strtol(szHandleToClose, 0, 16));
-		ProcExpKillHandle(dwPid,  strtol(szHandleToClose, 0, 16));
-		Success("Closing handle succeeded");
-	}
-	else {
-		printf("Please select an operation\n");
-	}
+
+		//printing additional info
+		if (isRequestingHandleList || isRequestingProcessKill || isUsingSpecificHandle)
+		{
+			printf("\n");
+			if (isUsingProcessName) {
+				printf("Process Name: %ws\n", szProcessName);
+			}
+
+			printf("[*] Process PID: %d\n", dwPid);
+			if (!ProcessGetProtectionLevel(dwPid, &dwProcessProtectionLevel))
+				printf("[!] Failed to get the protection level of process with PID %d\n", dwPid);
+			else
+			{
+				ProcessGetProtectionLevelAsString(dwPid, &pwszProcessProtectionName);
+				printf("[*] Process Protection level: %d - %ws\n", dwProcessProtectionLevel, pwszProcessProtectionName);
+			}
+		}
+
+		/* perform required operation */
+		if (isRequestingHandleList)
+		{
+			Info("Listing Handles\n");
+			ListProcessHandles(hProtectedProcess);
+		}
+		else if (isRequestingProcessKill) {
+			Info("Killing process\n");
+			KillProcessHandles(hProtectedProcess);
+			Success("Killing process succeeded");
+		}
+		else if (isUsingSpecificHandle)
+		{
+			Info("Closing Handle : 0x%x\n", strtol(szHandleToClose, 0, 16));
+			ProcExpKillHandle(dwPid, strtol(szHandleToClose, 0, 16));
+			Success("Closing handle succeeded");
+		}
+		else {
+			printf("Please select an operation\n");
+		}
+	} while (isContinuousMode);
 
 	if (isRequestingDriverUnload)
 	{
