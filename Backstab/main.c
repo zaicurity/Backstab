@@ -151,7 +151,7 @@ int main(int argc, char* argv[]) {
 
 
 
-	while ((opt = getopt(argc, argv, "hukln:p:s:d:x:")) != -1)
+	while ((opt = getopt(argc, argv, "chukln:p:s:d:x:")) != -1)
 	{
 		switch (opt)
 		{
@@ -210,15 +210,14 @@ int main(int argc, char* argv[]) {
 			return PrintInputError(-1);
 			break;
 		}
+		case 'c':
+		{
+			isContinuousMode = TRUE;
+			break;
+		}
 		case 'u':
 		{
 			isRequestingDriverUnload = TRUE;
-			break;
-		}
-		case 'c':
-		{
-			// This doesn't work yet :(
-			isContinuousMode = TRUE;
 			break;
 		}
 		}
@@ -282,9 +281,6 @@ int main(int argc, char* argv[]) {
 		Success("Connected to Driver successfully");
 	}
 
-	// Setting to always TRUE for now for testing
-	// TODO: Fix the cli argument so we can remove this
-	isContinuousMode = TRUE;
 	// Needed to prevent sleeping in first iteration of loop
 	BOOL firstIteration = TRUE;
 
